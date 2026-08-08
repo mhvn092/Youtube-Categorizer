@@ -10,7 +10,7 @@ class Settings(BaseModel):
     
     # LLM Settings
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "gemma:12b")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "hf.co/bartowski/gemma-4-12B-it-GGUF:Q4_K_M")
     
     # YouTube API (Optional)
     YOUTUBE_API_KEY: str = os.getenv("YOUTUBE_API_KEY", "")

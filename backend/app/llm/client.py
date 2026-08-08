@@ -97,7 +97,7 @@ async def analyze_video_with_ollama(video_meta: Dict[str, Any], user_profile: Di
             "main_takeaways": [
                 f"Video title: {video_meta.get('title')}",
                 f"Channel: {video_meta.get('channel')}",
-                "Start Ollama with 'ollama run gemma:14b' to analyze transcripts."
+                "Start Ollama with 'ollama run hf.co/bartowski/gemma-4-12B-it-GGUF:Q4_K_M' to analyze transcripts."
             ]
         }
 

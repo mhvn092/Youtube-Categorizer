@@ -1,6 +1,6 @@
 # 📺 YouTube Backlog & Subscription Triage Assistant
 
-An AI-powered web application designed to conquer YouTube video backlog overload and triage subscription feeds. Driven by **Ollama (`gemma:12b`)**, **faster-whisper** audio fallback, and an **adaptive user knowledge memory engine**, the app categorizes videos, extracts actionable key takeaways, and helps you skip low-value fluff without spending hours watching videos.
+An AI-powered web application designed to conquer YouTube video backlog overload and triage subscription feeds. Driven by **Ollama (`hf.co/bartowski/gemma-4-12B-it-GGUF:Q4_K_M`)**, **faster-whisper** audio fallback, and an **adaptive user knowledge memory engine**, the app categorizes videos, extracts actionable key takeaways, and helps you skip low-value fluff without spending hours watching videos.
 
 ---
 
@@ -31,7 +31,7 @@ An AI-powered web application designed to conquer YouTube video backlog overload
 ## 🛠 Tech Stack
 
 - **Backend**: Python 3.12, FastAPI, SQLite, `yt-dlp`, `youtube-transcript-api`, `faster-whisper`, `httpx`, `feedparser`.
-- **AI Core**: Ollama (`gemma:12b` default).
+- **AI Core**: Ollama (`hf.co/bartowski/gemma-4-12B-it-GGUF:Q4_K_M` default).
 - **Frontend**: React 18, Vite, Lucide Icons, Glassmorphism Dark Theme CSS.
 
 ---
@@ -39,9 +39,9 @@ An AI-powered web application designed to conquer YouTube video backlog overload
 ## 🚀 Quickstart Setup
 
 ### Prerequisites
-1. **Ollama**: Ensure [Ollama](https://ollama.com/) is installed and running with `gemma:12b`:
+1. **Ollama**: Ensure [Ollama](https://ollama.com/) is installed and running with `hf.co/bartowski/gemma-4-12B-it-GGUF:Q4_K_M`:
    ```bash
-   ollama run gemma:12b
+   ollama run hf.co/bartowski/gemma-4-12B-it-GGUF:Q4_K_M
    ```
 2. **Python**: Python 3.10+ installed.
 3. **Node.js**: Node 18+ and npm installed.
