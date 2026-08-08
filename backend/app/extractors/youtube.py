@@ -76,20 +76,24 @@ def fetch_all_playlists_api(channel_id: str, api_key: str, access_token: str = "
             base_url += f"&key={api_key}"
 
     # 1. Fetch user created playlists (Mine / Channel)
+    if not access_token and (not channel_id or channel_id == "UC_mine"):
+        print("[YouTube Sync] No OAuth token or valid Channel ID provided. Skipping YouTube Data API playlists fetch.", flush=True)
+        return playlists
+
     while True:
         url = base_url
         if page_token:
             url += f"&pageToken={page_token}"
         try:
+            print(f"[YouTube API Request] Fetching playlists... PageToken: '{page_token}'", flush=True)
             res = requests.get(url, headers=headers, timeout=10)
             if res.status_code != 200:
-                if res.status_code == 403 and "quotaExceeded" in res.text:
-                    print("[YouTube API Notice] Shared OAuth Playground quota exceeded. Switching to Zero-Quota scraper...")
-                else:
-                    print(f"[YouTube API Error] Playlists fetch status: {res.status_code}, response: {res.text}")
+                print(f"[YouTube API Error] Playlists fetch status: {res.status_code}, response: {res.text}", flush=True)
                 break
             data = res.json()
-            for item in data.get("items", []):
+            items_found = data.get("items", [])
+            print(f"[YouTube API Success] Found {len(items_found)} playlists on current page.", flush=True)
+            for item in items_found:
                 snippet = item.get("snippet", {})
                 content = item.get("contentDetails", {})
                 status_info = item.get("status", {})
@@ -110,11 +114,11 @@ def fetch_all_playlists_api(channel_id: str, api_key: str, access_token: str = "
             if not page_token:
                 break
         except Exception as e:
-            print(f"Error fetching playlists API: {e}")
+            print(f"[YouTube API Exception] Error fetching playlists API: {e}", flush=True)
             break
 
     # Fallback Uploads playlist
-    if channel_id and channel_id.startswith("UC"):
+    if channel_id and channel_id.startswith("UC") and len(channel_id) == 24:
         uploads_pl_id = "UU" + channel_id[2:]
         if not any(p["id"] == uploads_pl_id for p in playlists):
             playlists.insert(0, {
@@ -144,9 +148,14 @@ def fetch_all_playlist_items_api(playlist_id: str, api_key: str, access_token: s
         if page_token:
             url += f"&pageToken={page_token}"
         try:
+            print(f"[YouTube API Request] Fetching items for playlist {playlist_id}...", flush=True)
             res = requests.get(url, headers=headers, timeout=10)
             if res.status_code != 200:
-                print(f"[YouTube API Info] PlaylistItems status {res.status_code} for {playlist_id}. Falling back to yt-dlp zero-quota scraper...")
+                print(f"[YouTube API Info] PlaylistItems status {res.status_code} for {playlist_id}.", flush=True)
+                if res.status_code in (401, 403):
+                    print(f"[YouTube API Warning] Auth or quota issue (HTTP {res.status_code}). Skipping yt-dlp fallback for {playlist_id}.", flush=True)
+                    return []
+                print(f"[YouTube API Info] Falling back to yt-dlp zero-quota scraper for public playlist {playlist_id}...", flush=True)
                 fallback = fetch_playlist_data_ytdlp(playlist_id)
                 return fallback.get("videos", [])
             data = res.json()
@@ -169,7 +178,7 @@ def fetch_all_playlist_items_api(playlist_id: str, api_key: str, access_token: s
             if not page_token:
                 break
         except Exception as e:
-            print(f"Error fetching playlist items API: {e}")
+            print(f"[YouTube API Exception] Error fetching playlist items API: {e}", flush=True)
             break
     return videos
 
@@ -181,6 +190,9 @@ def fetch_all_subscriptions_api(channel_id: str, api_key: str, access_token: str
         headers["Authorization"] = f"Bearer {access_token}"
         base_url = "https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=50"
     else:
+        if not channel_id or channel_id == "UC_mine":
+            print("[YouTube Sync] No OAuth token or valid Channel ID provided. Skipping subscriptions fetch.", flush=True)
+            return subscriptions
         base_url = f"https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&channelId={channel_id}&maxResults=50"
         if api_key:
             base_url += f"&key={api_key}"
@@ -190,9 +202,10 @@ def fetch_all_subscriptions_api(channel_id: str, api_key: str, access_token: str
         if page_token:
             url += f"&pageToken={page_token}"
         try:
+            print(f"[YouTube API Request] Fetching channel subscriptions...", flush=True)
             res = requests.get(url, headers=headers, timeout=10)
             if res.status_code != 200:
-                print(f"[YouTube API Info] Subscriptions API status {res.status_code}.")
+                print(f"[YouTube API Info] Subscriptions API status {res.status_code}: {res.text}", flush=True)
                 break
             data = res.json()
             for item in data.get("items", []):
@@ -208,7 +221,7 @@ def fetch_all_subscriptions_api(channel_id: str, api_key: str, access_token: str
             if not page_token:
                 break
         except Exception as e:
-            print(f"Error fetching subscriptions API: {e}")
+            print(f"[YouTube API Exception] Error fetching subscriptions API: {e}", flush=True)
             break
     return subscriptions
 
@@ -332,16 +345,26 @@ def fetch_youtube_metadata_ytdlp(video_url: str) -> Dict[str, Any]:
 
 def fetch_youtube_transcript(video_id: str) -> Tuple[Optional[str], bool]:
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US', 'en-GB'])
-        text = " ".join([item['text'] for item in transcript_list])
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text, True
-    except (TranscriptsDisabled, NoTranscriptFound) as e:
-        print(f"No native transcript found for {video_id}: {e}")
-        return None, False
+        ytt = YouTubeTranscriptApi()
+        try:
+            transcript_obj = ytt.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
+        except Exception:
+            transcript_obj = ytt.fetch(video_id)
+            
+        snippets = getattr(transcript_obj, 'snippets', transcript_obj)
+        texts = []
+        for s in snippets:
+            if isinstance(s, dict):
+                texts.append(s.get('text', ''))
+            elif hasattr(s, 'text'):
+                texts.append(getattr(s, 'text', ''))
+        full_text = " ".join(texts)
+        full_text = re.sub(r'\s+', ' ', full_text).strip()
+        if full_text:
+            return full_text, True
     except Exception as e:
-        print(f"Error fetching transcript via youtube-transcript-api: {e}")
-        return None, False
+        print(f"[Transcript API Info] {video_id}: {e}", flush=True)
+    return None, False
 
 def get_video_info_and_transcript(url_or_id: str) -> Dict[str, Any]:
     video_id = extract_video_id(url_or_id)

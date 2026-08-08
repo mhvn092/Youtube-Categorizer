@@ -37,12 +37,15 @@ def sync_youtube_account(req: AccountSyncRequest):
         settings.YOUTUBE_API_KEY = api_key
 
     channel_id = resolve_channel_id(target, api_key) if target else "UC_mine"
+    print(f"[Sync Started] Target channel_id: {channel_id}, Has Access Token: {bool(access_token)}, Has API Key: {bool(api_key)}", flush=True)
     
     # 1. Fetch all playlists (uses mine=true if access_token present to fetch private/unlisted!)
     playlists_list = fetch_all_playlists_api(channel_id, api_key, access_token)
+    print(f"[Sync Playlists] Retrieved {len(playlists_list)} playlists. Fetching items for each...", flush=True)
     total_videos_synced = 0
     
-    for pl in playlists_list:
+    for idx, pl in enumerate(playlists_list):
+        print(f"[Syncing Playlist {idx+1}/{len(playlists_list)}] {pl['title']} ({pl['id']})...", flush=True)
         save_playlist(pl)
         items = fetch_all_playlist_items_api(pl["id"], api_key, access_token)
         total_videos_synced += len(items)
@@ -59,6 +62,7 @@ def sync_youtube_account(req: AccountSyncRequest):
             save_playlist_item(pl["id"], item["id"], item.get("playlist_item_id", ""), item.get("position", 0))
 
     # 2. Fetch all subscriptions
+    print(f"[Sync Subscriptions] Fetching channel subscriptions...", flush=True)
     subscriptions = fetch_all_subscriptions_api(channel_id, api_key, access_token)
     conn = get_db_connection()
     cursor = conn.cursor()
