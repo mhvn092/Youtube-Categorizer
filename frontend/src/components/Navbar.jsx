@@ -4,6 +4,24 @@ import { Video, Cpu, Key, Layers, Radio, Brain, PlusCircle, ListVideo } from 'lu
 export default function Navbar({ activeTab, setActiveTab, systemStatus, onOpenIngest, onOpenApiKeyModal }) {
   const isOllamaOnline = systemStatus?.ollama?.online;
   const isApiKeySet = systemStatus?.youtube_api_key_configured;
+  const isOAuthSet = systemStatus?.youtube_oauth_token_configured;
+  const hasRefreshToken = systemStatus?.youtube_has_refresh_token;
+
+  let ytStatusLabel = 'YouTube: Setup Credentials';
+  let ytStatusColor = 'var(--text-muted)';
+  if (hasRefreshToken) {
+    ytStatusLabel = isApiKeySet ? 'YouTube: Auto-Renew & API Key Active' : 'YouTube: Auto-Renew Active';
+    ytStatusColor = '#34d399';
+  } else if (isApiKeySet && isOAuthSet) {
+    ytStatusLabel = 'YouTube: Key & OAuth Active';
+    ytStatusColor = '#34d399';
+  } else if (isApiKeySet) {
+    ytStatusLabel = 'YouTube: API Key Saved';
+    ytStatusColor = '#818cf8';
+  } else if (isOAuthSet) {
+    ytStatusLabel = 'YouTube: OAuth Active (1h)';
+    ytStatusColor = '#34d399';
+  }
 
   return (
     <header className="glass-panel" style={{ borderRadius: 0, borderTop: 0, borderLeft: 0, borderRight: 0, padding: '16px 32px', marginBottom: '24px' }}>
@@ -102,13 +120,13 @@ export default function Navbar({ activeTab, setActiveTab, systemStatus, onOpenIn
             <span>Ollama ({systemStatus?.current_model || 'gemma:12b'}): {isOllamaOnline ? 'Online' : 'Offline'}</span>
           </div>
 
-          {/* YouTube API Key status button */}
+          {/* YouTube API & Credentials status button */}
           <button
             onClick={onOpenApiKeyModal}
             style={{
               background: 'transparent',
-              border: '1px solid var(--border-color)',
-              color: isApiKeySet ? '#34d399' : 'var(--text-muted)',
+              border: `1px solid ${ytStatusColor !== 'var(--text-muted)' ? ytStatusColor : 'var(--border-color)'}`,
+              color: ytStatusColor,
               fontSize: '0.75rem',
               padding: '4px 10px',
               borderRadius: '9999px',
@@ -119,7 +137,7 @@ export default function Navbar({ activeTab, setActiveTab, systemStatus, onOpenIn
             }}
           >
             <Key size={14} />
-            <span>YouTube API: {isApiKeySet ? 'Configured' : 'Optional (Setup)'}</span>
+            <span>{ytStatusLabel}</span>
           </button>
 
           {/* Ingest Video Button */}

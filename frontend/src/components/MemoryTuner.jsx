@@ -1,11 +1,23 @@
-import React, { useState } from 'react';
-import { Brain, Plus, Trash2, CheckCircle2, ShieldAlert, Sparkles, Save, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Brain, Plus, Trash2, CheckCircle2, ShieldAlert, Sparkles, Save, RefreshCw, ListVideo, Loader2 } from 'lucide-react';
 
-export default function MemoryTuner({ profile, onSaveProfile, onRefresh }) {
+export default function MemoryTuner({ profile, playlists = [], onSaveProfile, onTrainFromPlaylist, onRefresh }) {
   const [knownTopics, setKnownTopics] = useState(profile?.known_topics || []);
   const [interests, setInterests] = useState(profile?.interests || []);
   const [avoidTopics, setAvoidTopics] = useState(profile?.avoid_topics || []);
   const [notes, setNotes] = useState(profile?.guidance_notes || '');
+
+  const [selectedPlaylistToTrain, setSelectedPlaylistToTrain] = useState('');
+  const [training, setTraining] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      setKnownTopics(profile.known_topics || []);
+      setInterests(profile.interests || []);
+      setAvoidTopics(profile.avoid_topics || []);
+      setNotes(profile.guidance_notes || '');
+    }
+  }, [profile]);
 
   const [newKnown, setNewKnown] = useState('');
   const [newInterest, setNewInterest] = useState('');
@@ -39,20 +51,27 @@ export default function MemoryTuner({ profile, onSaveProfile, onRefresh }) {
     setTimeout(() => setSavedSuccess(false), 2000);
   };
 
+  const handleTrainFromSelectedPlaylist = async () => {
+    if (!selectedPlaylistToTrain || !onTrainFromPlaylist) return;
+    setTraining(true);
+    await onTrainFromPlaylist(selectedPlaylistToTrain);
+    setTraining(false);
+  };
+
   return (
     <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
       
       {/* Banner */}
       <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px', background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(99, 102, 241, 0.1) 100%)', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{ background: '#a855f7', padding: '12px', borderRadius: '12px' }}>
               <Brain size={28} color="#fff" />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>AI User Knowledge Profile</h2>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>AI User Knowledge & Taste Profile</h2>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                This is what Ollama (Gemma 14B) knows about your skills, priorities, and skip preferences.
+                This is what Ollama (Gemma 14B) uses to personalize categorization, priority scoring, and skip reasoning.
               </p>
             </div>
           </div>
@@ -61,6 +80,61 @@ export default function MemoryTuner({ profile, onSaveProfile, onRefresh }) {
           </button>
         </div>
       </div>
+
+      {/* Quick Train from Curated Playlist Card */}
+      {playlists.length > 0 && (
+        <div className="glass-panel" style={{ padding: '20px', marginBottom: '24px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <ListVideo size={24} color="#818cf8" />
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#ffffff' }}>
+                  Auto-Train Tastes from a Favorite Videos Playlist
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Pick your "Good Videos" or "Favorites" playlist to automatically extract your personal interests, art/cinema tastes, and high-value topics.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <select
+                value={selectedPlaylistToTrain}
+                onChange={(e) => setSelectedPlaylistToTrain(e.target.value)}
+                style={{
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid var(--border-color)',
+                  color: '#fff',
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.85rem',
+                  outline: 'none'
+                }}
+              >
+                <option value="">Select a playlist to train on...</option>
+                {playlists.map((pl) => (
+                  <option key={pl.id} value={pl.id}>
+                    {pl.title} ({pl.item_count || 0} videos)
+                  </option>
+                ))}
+              </select>
+
+              <button
+                className="btn-primary"
+                onClick={handleTrainFromSelectedPlaylist}
+                disabled={training || !selectedPlaylistToTrain}
+                style={{ fontSize: '0.825rem', padding: '8px 14px', background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)' }}
+              >
+                {training ? (
+                  <><Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> Training AI...</>
+                ) : (
+                  <><Brain size={14} /> Train AI Profile</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
         

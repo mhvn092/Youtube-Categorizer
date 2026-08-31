@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ListVideo, Plus, RefreshCw, Loader2, ExternalLink, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
+import { ListVideo, Plus, RefreshCw, Loader2, ExternalLink, ArrowRight, CheckCircle2, Sparkles, Brain } from 'lucide-react';
 
-export default function PlaylistsView({ playlists, onFetchPlaylist, onSelectPlaylist, onProcessPlaylist }) {
+export default function PlaylistsView({ playlists, onFetchPlaylist, onSelectPlaylist, onProcessPlaylist, onTrainPlaylist }) {
   const [playlistInput, setPlaylistInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [processingId, setProcessingId] = useState(null);
+  const [trainingId, setTrainingId] = useState(null);
 
   const handleFetch = async (e) => {
     e.preventDefault();
@@ -21,6 +22,13 @@ export default function PlaylistsView({ playlists, onFetchPlaylist, onSelectPlay
     setProcessingId(null);
   };
 
+  const handleTrain = async (playlistId) => {
+    if (!onTrainPlaylist) return;
+    setTrainingId(playlistId);
+    await onTrainPlaylist(playlistId);
+    setTrainingId(null);
+  };
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       
@@ -31,7 +39,7 @@ export default function PlaylistsView({ playlists, onFetchPlaylist, onSelectPlay
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>YouTube Playlists Management Hub</h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Import your YouTube playlists to process videos with Ollama (Gemma 12B) and clean up fluff videos on separate dedicated playlist pages.
+              Import your YouTube playlists to process videos with Ollama (Gemma 12B), learn your personal tastes, and clean up playlists.
             </p>
           </div>
         </div>
@@ -63,6 +71,7 @@ export default function PlaylistsView({ playlists, onFetchPlaylist, onSelectPlay
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px' }}>
           {playlists.map((pl) => {
             const isProcessing = processingId === pl.id;
+            const isTraining = trainingId === pl.id;
 
             return (
               <div key={pl.id} className="glass-panel animate-fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -88,12 +97,42 @@ export default function PlaylistsView({ playlists, onFetchPlaylist, onSelectPlay
                   </div>
 
                   {/* Progress Stats */}
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Ollama Categorized:</span>
                     <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#34d399' }}>
                       {pl.processed_count} / {pl.item_count} Videos
                     </span>
                   </div>
+
+                  {/* Taste Training Action */}
+                  <button
+                    onClick={() => handleTrain(pl.id)}
+                    disabled={isTraining}
+                    style={{
+                      width: '100%',
+                      marginBottom: '16px',
+                      padding: '8px 12px',
+                      background: 'rgba(168, 85, 247, 0.12)',
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: '#c084fc',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    title="Let AI analyze videos in this playlist to understand what genres, art, depth and topics you love"
+                  >
+                    {isTraining ? (
+                      <><Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> Training AI Memory on Taste Profile...</>
+                    ) : (
+                      <><Brain size={14} /> 🧠 Train AI Profile on This Playlist</>
+                    )}
+                  </button>
 
                 </div>
 
@@ -108,7 +147,7 @@ export default function PlaylistsView({ playlists, onFetchPlaylist, onSelectPlay
                     {isProcessing ? (
                       <><Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> Gemma 12B...</>
                     ) : (
-                      <><RefreshCw size={14} /> Process Playlist</>
+                      <><RefreshCw size={14} /> Process</>
                     )}
                   </button>
 

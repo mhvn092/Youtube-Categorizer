@@ -11,9 +11,12 @@ Avoid / Skip Topics (User dislikes these): {avoid_topics}
 Guidance Notes: {guidance_notes}
 ==========================================
 
-Analyze the transcript and title thoroughly. Output STRICT JSON adhering to this schema:
+Analyze the transcript and title thoroughly.
+Classify the video into a clear 'Domain / Sub-category' format (e.g. 'Cinema / Video Essay', 'Cinema / Deep Dive', 'Art / Aesthetics', 'Software Engineering / Architecture', 'Tech / Tutorial', 'Philosophy / Discussion', 'Science / Documentary', 'Career / Advice', 'Gaming / Critique', 'Productivity / System'). Avoid generic single words.
+
+Output STRICT JSON adhering to this schema:
 {{
-  "category": "news | reaction | hot take | advice | tutorial | tech deep dive | entertainment | career",
+  "category": "Domain / Sub-category (e.g. 'Cinema / Video Essay', 'Cinema / Deep Dive', 'Art / Aesthetics', 'Software Engineering / Architecture', 'Tech / Deep Dive', 'Philosophy / Essay')",
   "one_line_summary": "Single concise sentence summarizing what the video actually covers",
   "priority": "high | mid | low | life changing | skip",
   "what_it_gains_me": "Clear statement of what watching this video provides",
@@ -44,7 +47,7 @@ Update the user's knowledge and preference profile based on this feedback.
 
 Current Profile:
 - Known Topics: {known_topics}
-- High-Value Interests: {interests}
+- Interests: {interests}
 - Avoid Topics: {avoid_topics}
 
 Video Title: {title}
@@ -57,6 +60,37 @@ Return an UPDATED profile in JSON format:
   "interests": ["updated list of user interests"],
   "avoid_topics": ["updated list of topics to avoid/skip"],
   "guidance_notes": "Summary of user preference rules"
+}}
+
+Output ONLY valid JSON.
+"""
+
+PLAYLIST_PROFILE_TRAINING_PROMPT = """You are an Expert AI Personal Preference & Taste Profiler.
+The user has provided a curated list of their FAVORITE and highest-valued YouTube videos from their personal collection (e.g. "Good Videos", "Favorites", "Best of YouTube").
+
+Videos in user's favorite collection:
+{videos_summary}
+
+Current Profile:
+- Known Topics: {known_topics}
+- Interests: {interests}
+- Avoid Topics: {avoid_topics}
+
+Analyze the themes, depth, artistry, technical subjects, philosophy, cinematic style, storytelling, or craftsmanship that make these videos high-value to the user.
+Synthesize a comprehensive, refined User Knowledge & Preference Profile so future video triaging accurately reflects what they love and value.
+
+Return a STRICT JSON response:
+{{
+  "known_topics": [
+    "Topics, tools, or concepts the user is already advanced in or knows well"
+  ],
+  "interests": [
+    "Specific high-value genres, aesthetic styles, cinema/art themes, technical topics, philosophy, or essay types user loves"
+  ],
+  "avoid_topics": [
+    "Topics or formats to avoid (e.g. surface clickbait, repetitive basic tutorials, fluff)"
+  ],
+  "guidance_notes": "Detailed rules and principles guiding future triage recommendations based on this favorite collection (e.g. 'User deeply values auteur cinema, film philosophy, art theory, and deep technical architecture essays. Do not classify aesthetic or cinematic analysis as generic low-priority unless it lacks depth.')"
 }}
 
 Output ONLY valid JSON.

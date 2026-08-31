@@ -36,6 +36,14 @@ class UserProfileUpdate(BaseModel):
 class ApiKeyRequest(BaseModel):
     api_key: str
 
+class YouTubeCredentialsRequest(BaseModel):
+    api_key: Optional[str] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    channel_handle: Optional[str] = None
+
 # DB CRUD functions
 
 def save_playlist(pl_data: dict):
@@ -127,10 +135,11 @@ def save_video(video_data: dict):
     cursor = conn.cursor()
     
     takeaways_str = json.dumps(video_data.get("takeaways", [])) if isinstance(video_data.get("takeaways"), list) else video_data.get("takeaways", "[]")
+    avail_str = json.dumps(video_data.get("available_transcripts", [])) if isinstance(video_data.get("available_transcripts"), list) else video_data.get("available_transcripts", "[]")
     
     cursor.execute("""
-        INSERT INTO videos (id, url, title, channel, duration, thumbnail, transcript, category, summary, priority, what_it_gains, why_skip, takeaways, runtime_str, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO videos (id, url, title, channel, duration, thumbnail, transcript, category, summary, priority, what_it_gains, why_skip, takeaways, runtime_str, status, available_transcripts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             title=excluded.title,
             channel=excluded.channel,
@@ -144,7 +153,8 @@ def save_video(video_data: dict):
             why_skip=excluded.why_skip,
             takeaways=excluded.takeaways,
             runtime_str=excluded.runtime_str,
-            status=excluded.status
+            status=excluded.status,
+            available_transcripts=excluded.available_transcripts
     """, (
         video_data["id"],
         video_data["url"],
@@ -160,10 +170,23 @@ def save_video(video_data: dict):
         video_data.get("why_skip", "none"),
         takeaways_str,
         video_data.get("runtime_str", ""),
-        video_data.get("status", "pending")
+        video_data.get("status", "pending"),
+        avail_str
     ))
     conn.commit()
     conn.close()
+
+def _parse_video_json_fields(item: dict) -> dict:
+    try:
+        item["takeaways"] = json.loads(item["takeaways"]) if item.get("takeaways") else []
+    except Exception:
+        item["takeaways"] = []
+
+    try:
+        item["available_transcripts"] = json.loads(item["available_transcripts"]) if item.get("available_transcripts") else []
+    except Exception:
+        item["available_transcripts"] = []
+    return item
 
 def get_all_videos() -> List[dict]:
     conn = get_db_connection()
@@ -172,15 +195,7 @@ def get_all_videos() -> List[dict]:
     rows = cursor.fetchall()
     conn.close()
     
-    res = []
-    for r in rows:
-        item = dict(r)
-        try:
-            item["takeaways"] = json.loads(item["takeaways"]) if item["takeaways"] else []
-        except Exception:
-            item["takeaways"] = []
-        res.append(item)
-    return res
+    return [_parse_video_json_fields(dict(r)) for r in rows]
 
 def get_video_by_id(video_id: str) -> Optional[dict]:
     conn = get_db_connection()
@@ -190,12 +205,7 @@ def get_video_by_id(video_id: str) -> Optional[dict]:
     conn.close()
     if not row:
         return None
-    item = dict(row)
-    try:
-        item["takeaways"] = json.loads(item["takeaways"]) if item["takeaways"] else []
-    except Exception:
-        item["takeaways"] = []
-    return item
+    return _parse_video_json_fields(dict(row))
 
 def update_video_status(video_id: str, status: str):
     conn = get_db_connection()

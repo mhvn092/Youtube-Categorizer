@@ -5,14 +5,15 @@ from app.config import settings
 from app.db.models import (
     PlaylistFetchRequest, BatchDeleteRequest, save_playlist, save_playlist_item,
     get_all_playlists, get_playlist_by_id, get_playlist_videos,
-    delete_video_from_playlist_db, save_video
+    delete_video_from_playlist_db, save_video, get_user_profile, save_user_profile
 )
-from app.db.database import get_db_connection
+from app.db.database import get_db_connection, get_setting, set_setting, get_valid_youtube_access_token
 from app.extractors.youtube import (
     fetch_playlist_data_ytdlp, delete_youtube_playlist_item,
     resolve_channel_id, fetch_all_playlists_api, fetch_all_playlist_items_api, fetch_all_subscriptions_api
 )
 from app.api.videos import process_single_video_pipeline
+from app.llm.client import train_profile_from_playlist_videos
 
 router = APIRouter(prefix="/api/playlists", tags=["Playlists"])
 
@@ -27,14 +28,18 @@ def list_playlists():
 
 @router.post("/sync-account")
 def sync_youtube_account(req: AccountSyncRequest):
-    api_key = req.api_key.strip() or settings.YOUTUBE_API_KEY
-    access_token = req.access_token.strip() or settings.YOUTUBE_OAUTH_TOKEN
-    target = req.channel_handle_or_url.strip()
+    api_key = req.api_key.strip() if req.api_key else get_setting("youtube_api_key", settings.YOUTUBE_API_KEY)
+    access_token = req.access_token.strip() if req.access_token else get_valid_youtube_access_token()
+    target = req.channel_handle_or_url.strip() if req.channel_handle_or_url else get_setting("youtube_channel_handle", "")
     
     if access_token:
         settings.YOUTUBE_OAUTH_TOKEN = access_token
+        set_setting("youtube_oauth_token", access_token)
     if api_key:
         settings.YOUTUBE_API_KEY = api_key
+        set_setting("youtube_api_key", api_key)
+    if target:
+        set_setting("youtube_channel_handle", target)
 
     channel_id = resolve_channel_id(target, api_key) if target else "UC_mine"
     print(f"[Sync Started] Target channel_id: {channel_id}, Has Access Token: {bool(access_token)}, Has API Key: {bool(api_key)}", flush=True)
@@ -151,9 +156,29 @@ async def process_playlist_videos(playlist_id: str):
 
     return {"status": "success", "processed_count": len(processed), "videos": get_playlist_videos(playlist_id)}
 
+@router.post("/{playlist_id}/train-profile")
+async def train_ai_from_playlist(playlist_id: str):
+    pl = get_playlist_by_id(playlist_id)
+    if not pl:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+        
+    videos = get_playlist_videos(playlist_id)
+    if not videos:
+        raise HTTPException(status_code=400, detail="Playlist contains no videos to train on.")
+        
+    current_profile = get_user_profile()
+    updated_profile = await train_profile_from_playlist_videos(videos, current_profile)
+    save_user_profile(updated_profile)
+    
+    return {
+        "status": "success",
+        "message": f"AI successfully trained and updated your profile using {len(videos)} video(s) from '{pl['title']}'!",
+        "profile": updated_profile
+    }
+
 @router.delete("/{playlist_id}/items")
 def batch_delete_playlist_items(playlist_id: str, req: BatchDeleteRequest):
-    token = req.access_token or settings.YOUTUBE_OAUTH_TOKEN
+    token = req.access_token or get_valid_youtube_access_token()
     deleted_ids = []
     failed_api = []
     

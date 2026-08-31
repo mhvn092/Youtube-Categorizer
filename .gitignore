@@ -7,6 +7,7 @@ backend/venv/
 *.sqlite
 *.db
 backend/data/
+backend/cookies.txt
 
 # Node / Vite Frontend
 node_modules/
@@ -16,6 +17,7 @@ dist/
 .env
 .env.local
 .env.*.local
+
 
 # IDE & OS
 .vscode/

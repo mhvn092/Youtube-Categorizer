@@ -1,10 +1,47 @@
-import React from 'react';
-import { X, FileText, ExternalLink, Sparkles, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, FileText, ExternalLink, Sparkles, CheckCircle2, AlertTriangle, Clock, AlignLeft, ChevronDown, ChevronUp, RefreshCw, Zap } from 'lucide-react';
 
-export default function TakeawayDrawer({ video, onClose, onMarkWatched }) {
+export default function TakeawayDrawer({ video, onClose, onMarkWatched, onReanalyzeWithTranscript }) {
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [selectedTrackId, setSelectedTrackId] = useState('');
+  const [activeTranscriptText, setActiveTranscriptText] = useState('');
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
+
+  useEffect(() => {
+    if (video) {
+      const avail = Array.isArray(video.available_transcripts) ? video.available_transcripts : [];
+      if (avail.length > 0) {
+        setSelectedTrackId(avail[0].id || 'track_0');
+        setActiveTranscriptText(avail[0].text || video.transcript || '');
+      } else {
+        setSelectedTrackId('default');
+        setActiveTranscriptText(video.transcript || '');
+      }
+    }
+  }, [video]);
+
   if (!video) return null;
 
   const takeaways = Array.isArray(video.takeaways) ? video.takeaways : [];
+  const availableTracks = Array.isArray(video.available_transcripts) ? video.available_transcripts : [];
+
+  const handleTrackChange = (e) => {
+    const trackId = e.target.value;
+    setSelectedTrackId(trackId);
+    const found = availableTracks.find(t => t.id === trackId);
+    if (found) {
+      setActiveTranscriptText(found.text);
+    } else {
+      setActiveTranscriptText(video.transcript || '');
+    }
+  };
+
+  const handleReanalyze = async () => {
+    if (!onReanalyzeWithTranscript || !activeTranscriptText) return;
+    setIsReanalyzing(true);
+    await onReanalyzeWithTranscript(video.id, activeTranscriptText);
+    setIsReanalyzing(false);
+  };
 
   return (
     <div style={{
@@ -81,7 +118,7 @@ export default function TakeawayDrawer({ video, onClose, onMarkWatched }) {
         </div>
 
         {/* Bulleted Takeaways */}
-        <div style={{ marginBottom: '32px' }}>
+        <div style={{ marginBottom: '24px' }}>
           <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Sparkles size={16} color="#818cf8" /> Key Learnings & Takeaways (Skip watching!)
           </h4>
@@ -97,6 +134,132 @@ export default function TakeawayDrawer({ video, onClose, onMarkWatched }) {
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+
+        {/* Full Captions / Transcript Accordion */}
+        <div style={{ marginBottom: '32px' }}>
+          <button
+            onClick={() => setShowTranscript(!showTranscript)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justify: 'space-between',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid var(--border-color)',
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-sm)',
+              color: '#e5e7eb',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: 600
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlignLeft size={16} color="#818cf8" />
+              <span>Full Raw Captions & Track Options</span>
+              {availableTracks.length > 0 ? (
+                <span style={{ fontSize: '0.725rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', padding: '2px 8px', borderRadius: '12px' }}>
+                  {availableTracks.length} Track{availableTracks.length > 1 ? 's' : ''} Available
+                </span>
+              ) : activeTranscriptText ? (
+                <span style={{ fontSize: '0.725rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '2px 8px', borderRadius: '12px' }}>
+                  {activeTranscriptText.split(' ').length} words
+                </span>
+              ) : (
+                <span style={{ fontSize: '0.725rem', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', padding: '2px 8px', borderRadius: '12px' }}>
+                  Not Available
+                </span>
+              )}
+            </div>
+            {showTranscript ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+
+          {showTranscript && (
+            <div style={{
+              marginTop: '12px',
+              padding: '16px',
+              background: 'rgba(0, 0, 0, 0.4)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-sm)'
+            }}>
+              {/* Caption Track Selector */}
+              {availableTracks.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+                    Select English / Caption Track:
+                  </label>
+                  <select
+                    value={selectedTrackId}
+                    onChange={handleTrackChange}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(0, 0, 0, 0.6)',
+                      border: '1px solid var(--border-color)',
+                      color: '#60a5fa',
+                      padding: '8px 12px',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      fontWeight: 600
+                    }}
+                  >
+                    {availableTracks.map((tr, idx) => (
+                      <option key={tr.id || idx} value={tr.id}>
+                        {tr.name} — ({tr.word_count || (tr.text ? tr.text.split(' ').length : 0)} words)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Transcript Text */}
+              <div style={{
+                maxHeight: '220px',
+                overflowY: 'auto',
+                fontSize: '0.825rem',
+                color: '#d1d5db',
+                lineHeight: '1.6',
+                whiteSpace: 'pre-wrap',
+                background: 'rgba(0,0,0,0.3)',
+                padding: '12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(255,255,255,0.05)'
+              }}>
+                {activeTranscriptText || 'No transcript text available for this video.'}
+              </div>
+
+              {/* Re-analyze Button */}
+              {activeTranscriptText && (
+                <button
+                  onClick={handleReanalyze}
+                  disabled={isReanalyzing}
+                  style={{
+                    marginTop: '12px',
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justify: 'center',
+                    gap: '8px',
+                    padding: '8px 14px',
+                    fontSize: '0.8rem',
+                    background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  {isReanalyzing ? (
+                    <><RefreshCw size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> Re-analyzing AI with Selected Caption...</>
+                  ) : (
+                    <><Zap size={14} /> Re-analyze AI Takeaways with Selected Caption Track</>
+                  )}
+                </button>
+              )}
+            </div>
           )}
         </div>
 

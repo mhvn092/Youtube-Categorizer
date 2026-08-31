@@ -1,14 +1,35 @@
 import React, { useState } from 'react';
-import { Play, Eye, XCircle, FileText, ExternalLink, Clock, AlertTriangle, Sparkles, Filter } from 'lucide-react';
+import { Play, Eye, XCircle, FileText, ExternalLink, Clock, AlertTriangle, Sparkles, Filter, RefreshCw, Brain, Loader2 } from 'lucide-react';
 
-export default function TriageTable({ videos, onSelectTakeaways, onOpenFeedback, onRefresh }) {
+export default function TriageTable({ videos, onSelectTakeaways, onOpenFeedback, onRetryVideo, onRetryAllPlaceholders, onRefresh }) {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [retryingId, setRetryingId] = useState(null);
+  const [retryingAll, setRetryingAll] = useState(false);
 
   // Extract unique categories
   const categories = ['all', ...new Set(videos.map(v => v.category).filter(Boolean))];
+
+  // Placeholder videos check
+  const placeholderCount = videos.filter(v => 
+    v.title === 'YouTube Video' || 
+    (v.summary && v.summary.toLowerCase().includes('placeholder')) ||
+    (v.summary && v.summary.toLowerCase().includes('no actual video content'))
+  ).length;
+
+  const handleRetrySingle = async (videoId) => {
+    setRetryingId(videoId);
+    await onRetryVideo(videoId);
+    setRetryingId(null);
+  };
+
+  const handleRetryAll = async () => {
+    setRetryingAll(true);
+    await onRetryAllPlaceholders();
+    setRetryingAll(false);
+  };
 
   const filteredVideos = videos.filter(v => {
     if (categoryFilter !== 'all' && v.category !== categoryFilter) return false;
@@ -31,7 +52,7 @@ export default function TriageTable({ videos, onSelectTakeaways, onOpenFeedback,
       <div className="glass-panel" style={{ padding: '16px 24px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', justifyContent: 'space-between' }}>
         
         {/* Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', minWidth: '280px', flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', minWidth: '260px', flex: 1 }}>
           <Filter size={16} color="var(--text-muted)" />
           <input
             type="text"
@@ -42,9 +63,25 @@ export default function TriageTable({ videos, onSelectTakeaways, onOpenFeedback,
           />
         </div>
 
-        {/* Filter Dropdowns */}
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        {/* Filter Dropdowns & Re-analyze All Button */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
           
+          {placeholderCount > 0 && (
+            <button
+              className="btn-primary"
+              onClick={handleRetryAll}
+              disabled={retryingAll}
+              style={{ fontSize: '0.8rem', padding: '8px 14px', background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)' }}
+              title="Re-fetch metadata & transcript for all placeholder videos now that cookies/API key are active"
+            >
+              {retryingAll ? (
+                <><Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> Re-analyzing {placeholderCount} Videos...</>
+              ) : (
+                <><RefreshCw size={14} /> Re-analyze All Placeholders ({placeholderCount})</>
+              )}
+            </button>
+          )}
+
           {/* Category Filter */}
           <select
             value={categoryFilter}
@@ -113,6 +150,7 @@ export default function TriageTable({ videos, onSelectTakeaways, onOpenFeedback,
                 const priorityClass = `priority-${v.priority?.toLowerCase() || 'mid'}`;
                 const isSkipped = v.status === 'skipped';
                 const isWatched = v.status === 'watched';
+                const isRetrying = retryingId === v.id;
 
                 return (
                   <tr
@@ -194,8 +232,33 @@ export default function TriageTable({ videos, onSelectTakeaways, onOpenFeedback,
 
                     {/* Actions */}
                     <td style={{ padding: '16px 20px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
                         
+                        {/* Re-analyze / Retry Button */}
+                        <button
+                          className="btn-secondary"
+                          onClick={() => handleRetrySingle(v.id)}
+                          disabled={isRetrying}
+                          title="Re-extract metadata, transcript & re-run AI triage"
+                          style={{ padding: '6px 10px', fontSize: '0.78rem', color: '#60a5fa', borderColor: 'rgba(96, 165, 250, 0.3)' }}
+                        >
+                          {isRetrying ? (
+                            <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <RefreshCw size={14} />
+                          )}
+                        </button>
+
+                        {/* Train AI / Add Thoughts Button */}
+                        <button
+                          className="btn-secondary"
+                          onClick={() => onOpenFeedback(v, 'thought')}
+                          title="Add your thoughts on this video to train AI memory"
+                          style={{ padding: '6px 10px', fontSize: '0.78rem', color: '#c084fc', borderColor: 'rgba(192, 132, 252, 0.3)' }}
+                        >
+                          <Brain size={14} /> Train AI
+                        </button>
+
                         {/* Read Takeaways Button */}
                         <button
                           className="btn-secondary"
@@ -206,11 +269,11 @@ export default function TriageTable({ videos, onSelectTakeaways, onOpenFeedback,
                           <FileText size={14} /> Takeaways
                         </button>
 
-                        {/* Skip & Teach AI Button */}
+                        {/* Skip Button */}
                         <button
                           className="btn-secondary"
-                          onClick={() => onOpenFeedback(v)}
-                          title="Skip and train AI memory"
+                          onClick={() => onOpenFeedback(v, 'skip')}
+                          title="Skip video & update AI memory"
                           style={{ padding: '6px 10px', fontSize: '0.78rem', color: '#fb7185', borderColor: 'rgba(244, 63, 94, 0.3)' }}
                         >
                           <XCircle size={14} /> Skip

@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 import yt_dlp
-from app.config import settings
+from app.config import BASE_DIR, settings
 
 LOCAL_WHISPER_MODEL = r"D:\Faster Whisper\bin\_models\faster-whisper-large-v3-turbo"
 LOCAL_FFMPEG_DIR = r"D:\Faster Whisper\bin"
@@ -23,7 +23,7 @@ def transcribe_audio_with_whisper(video_url: str) -> Optional[str]:
     audio_path = os.path.join(temp_dir, "audio.mp3")
 
     ydl_opts = {
-        'format': 'm4a/bestaudio/best',
+        'format': 'bestaudio/ba/m4a/b/best',
         'outtmpl': os.path.join(temp_dir, 'audio.%(ext)s'),
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
@@ -31,12 +31,27 @@ def transcribe_audio_with_whisper(video_url: str) -> Optional[str]:
             'preferredquality': '96',
         }],
         'quiet': True,
-        'extractor_args': {'youtube': {'player_client': ['mweb', 'android', 'ios']}},
+        'no_warnings': True,
+        'extractor_args': {'youtube': {'player_client': ['mweb', 'web', 'android', 'ios', 'tv']}},
         'nocheckcertificate': True
     }
 
     if os.path.exists(LOCAL_FFMPEG_DIR):
         ydl_opts['ffmpeg_location'] = LOCAL_FFMPEG_DIR
+
+    # Check for cookies file
+    cookie_candidates = [
+        settings.YOUTUBE_COOKIES_FILE,
+        "cookies.txt",
+        os.path.join(BASE_DIR, "cookies.txt"),
+        os.path.join(BASE_DIR, "data", "cookies.txt"),
+        os.path.join(os.path.dirname(BASE_DIR), "cookies.txt")
+    ]
+    for path in cookie_candidates:
+        if path and os.path.exists(path) and os.path.getsize(path) > 0:
+            print(f"[Audio Downloader] Using cookies file: {path}", flush=True)
+            ydl_opts['cookiefile'] = path
+            break
 
     if settings.YOUTUBE_OAUTH_TOKEN:
         ydl_opts['http_headers'] = {'Authorization': f'Bearer {settings.YOUTUBE_OAUTH_TOKEN}'}

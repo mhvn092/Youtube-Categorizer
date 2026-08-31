@@ -1,12 +1,21 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Trash2, CheckSquare, Square, AlertTriangle, FileText, ExternalLink, RefreshCw, Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Trash2, CheckSquare, Square, AlertTriangle, FileText, ExternalLink, RefreshCw, Loader2, Sparkles, Brain, XCircle } from 'lucide-react';
 
-export default function PlaylistDetailPage({ playlist, videos, onBack, onSelectTakeaways, onBatchDelete, onProcessPlaylist }) {
+export default function PlaylistDetailPage({ playlist, videos, onBack, onSelectTakeaways, onOpenFeedback, onRetryVideo, onRetryAllPlaceholders, onBatchDelete, onProcessPlaylist, onTrainPlaylist }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [deleting, setDeleting] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [training, setTraining] = useState(false);
+  const [retryingId, setRetryingId] = useState(null);
+  const [retryingAll, setRetryingAll] = useState(false);
 
   if (!playlist) return null;
+
+  const placeholderCount = videos.filter(v => 
+    v.title === 'YouTube Video' || 
+    (v.summary && v.summary.toLowerCase().includes('placeholder')) ||
+    (v.summary && v.summary.toLowerCase().includes('no actual video content'))
+  ).length;
 
   const toggleSelect = (id) => {
     if (selectedIds.includes(id)) {
@@ -47,11 +56,30 @@ export default function PlaylistDetailPage({ playlist, videos, onBack, onSelectT
     setProcessing(false);
   };
 
+  const handleTrain = async () => {
+    if (!onTrainPlaylist) return;
+    setTraining(true);
+    await onTrainPlaylist(playlist.id);
+    setTraining(false);
+  };
+
+  const handleRetrySingle = async (videoId) => {
+    setRetryingId(videoId);
+    await onRetryVideo(videoId);
+    setRetryingId(null);
+  };
+
+  const handleRetryAll = async () => {
+    setRetryingAll(true);
+    await onRetryAllPlaceholders();
+    setRetryingAll(false);
+  };
+
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
       
       {/* Back button & Playlist Title Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyBetween: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button className="btn-secondary" onClick={onBack} style={{ padding: '8px 12px' }}>
@@ -65,7 +93,43 @@ export default function PlaylistDetailPage({ playlist, videos, onBack, onSelectT
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            className="btn-secondary"
+            onClick={handleTrain}
+            disabled={training}
+            style={{
+              padding: '8px 14px',
+              fontSize: '0.82rem',
+              color: '#c084fc',
+              background: 'rgba(168, 85, 247, 0.15)',
+              borderColor: 'rgba(168, 85, 247, 0.4)',
+              fontWeight: 600
+            }}
+            title="Analyze videos in this playlist to update your AI knowledge profile and taste preferences"
+          >
+            {training ? (
+              <><Loader2 size={16} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> Training AI Profile...</>
+            ) : (
+              <><Brain size={16} /> 🧠 Train AI on this Playlist</>
+            )}
+          </button>
+
+          {placeholderCount > 0 && (
+            <button
+              className="btn-primary"
+              onClick={handleRetryAll}
+              disabled={retryingAll}
+              style={{ fontSize: '0.82rem', padding: '8px 14px', background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)' }}
+            >
+              {retryingAll ? (
+                <><Loader2 size={16} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> Re-analyzing {placeholderCount} Videos...</>
+              ) : (
+                <><RefreshCw size={16} /> Re-analyze {placeholderCount} Placeholders</>
+              )}
+            </button>
+          )}
+
           <button className="btn-secondary" onClick={handleProcess} disabled={processing}>
             {processing ? <><Loader2 size={16} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> Processing with Gemma 12B...</> : <><RefreshCw size={16} /> Process Playlist with AI</>}
           </button>
@@ -124,6 +188,7 @@ export default function PlaylistDetailPage({ playlist, videos, onBack, onSelectT
               {videos.map((v) => {
                 const isSelected = selectedIds.includes(v.id);
                 const priorityClass = `priority-${v.priority?.toLowerCase() || 'mid'}`;
+                const isRetrying = retryingId === v.id;
 
                 return (
                   <tr
@@ -184,14 +249,52 @@ export default function PlaylistDetailPage({ playlist, videos, onBack, onSelectT
                     </td>
 
                     {/* Actions */}
-                    <td style={{ padding: '16px 16px', textAlign: 'right' }}>
-                      <button
-                        className="btn-secondary"
-                        onClick={() => onSelectTakeaways(v)}
-                        style={{ padding: '6px 10px', fontSize: '0.78rem', background: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)', color: '#a5b4fc' }}
-                      >
-                        <FileText size={14} /> Takeaways
-                      </button>
+                    <td style={{ padding: '16px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                        {/* Retry Button */}
+                        <button
+                          className="btn-secondary"
+                          onClick={() => handleRetrySingle(v.id)}
+                          disabled={isRetrying}
+                          title="Re-extract metadata & re-run AI triage"
+                          style={{ padding: '6px 10px', fontSize: '0.78rem', color: '#60a5fa', borderColor: 'rgba(96, 165, 250, 0.3)' }}
+                        >
+                          {isRetrying ? (
+                            <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <RefreshCw size={14} />
+                          )}
+                        </button>
+
+                        {/* Train AI Button */}
+                        <button
+                          className="btn-secondary"
+                          onClick={() => onOpenFeedback(v, 'thought')}
+                          title="Add thoughts on video to train AI memory"
+                          style={{ padding: '6px 10px', fontSize: '0.78rem', color: '#c084fc', borderColor: 'rgba(192, 132, 252, 0.3)' }}
+                        >
+                          <Brain size={14} /> Train AI
+                        </button>
+
+                        {/* Takeaways Button */}
+                        <button
+                          className="btn-secondary"
+                          onClick={() => onSelectTakeaways(v)}
+                          style={{ padding: '6px 10px', fontSize: '0.78rem', background: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)', color: '#a5b4fc' }}
+                        >
+                          <FileText size={14} /> Takeaways
+                        </button>
+
+                        {/* Skip Button */}
+                        <button
+                          className="btn-secondary"
+                          onClick={() => onOpenFeedback(v, 'skip')}
+                          title="Skip video & update AI memory"
+                          style={{ padding: '6px 10px', fontSize: '0.78rem', color: '#fb7185', borderColor: 'rgba(244, 63, 94, 0.3)' }}
+                        >
+                          <XCircle size={14} /> Skip
+                        </button>
+                      </div>
                     </td>
 
                   </tr>
